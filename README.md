@@ -76,6 +76,7 @@
 
 - Vercel এ deploy করার পর সাইট এ error দেখালে: Vercel dashboard > Project > Settings > Environment Variables এ গিয়ে ৫টা ভ্যারিয়েবল ঠিকমতো বসানো আছে কিনা চেক করো, তারপর "Deployments" ট্যাব থেকে "Redeploy" চাপো।
 - Local এ চালিয়ে টেস্ট করতে চাইলে: `.env.local.example` ফাইলের নাম বদলে `.env.local` করো, ভ্যালুগুলো বসাও, তারপর টার্মিনালে:
+- একটা পরিবর্তন
   ```
   npm install
   npm run dev
