@@ -49,7 +49,7 @@ export default async function HomePage() {
           </div>
         </div>
         <a className="admin-link" href="/admin">
-          Login
+          Admin Panel
         </a>
       </div>
 
