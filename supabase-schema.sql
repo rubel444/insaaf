@@ -45,3 +45,11 @@ create index if not exists idx_transactions_investment on transactions(investmen
 alter table members disable row level security;
 alter table investments disable row level security;
 alter table transactions disable row level security;
+
+-- ============================================
+-- আপডেট: due amount ফিচারের জন্য নতুন কলাম
+-- (যদি আগে থেকেই টেবিল বানানো থাকে, শুধু এই অংশটুকু
+--  Supabase SQL Editor এ আলাদা করে Run করলেই হবে)
+-- ============================================
+alter table members add column if not exists target_amount numeric default 0;
+comment on column members.target_amount is 'এই মাস পর্যন্ত সদস্যের পুরোপুরি ক্লিয়ার থাকলে যত টাকা জমা থাকার কথা - এডমিন হাতে বসাবে';
