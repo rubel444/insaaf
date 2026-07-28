@@ -32,12 +32,12 @@ export default function MemberCard({ m }) {
       </button>
 
       <div className="member-balance-row">
-        <span className="member-balance-label">বর্তমান ব্যালেন্স</span>
-        <span className="member-balance-value">{taka(m.currentBalance)}</span>
+        <span className="member-balance-label">মোট জমা</span>
+        <span className="member-balance-value">{taka(m.totalContributed)}</span>
       </div>
 
       <button className="details-toggle" onClick={() => setOpen(!open)}>
-        {open ? "লুকান" : "বিস্তারিত দেখুন"}
+        {open ? "লুকান" : "বিস্তারিত দেখুন (জমা + লাভ)"}
       </button>
 
       {open && (
@@ -45,11 +45,15 @@ export default function MemberCard({ m }) {
           <div className="tx-summary">
             <div>
               <span className="member-balance-label">মোট জমা</span>
-              <div className="tx-amount-deposit">{taka(m.totalDeposit)}</div>
+              <div className="tx-amount-deposit">{taka(m.totalContributed)}</div>
             </div>
             <div>
               <span className="member-balance-label">লাভের ভাগ</span>
               <div className="tx-amount-profit">{taka(m.totalProfit)}</div>
+            </div>
+            <div>
+              <span className="member-balance-label">সর্বমোট (জমা + লাভ)</span>
+              <div className="tx-amount-grand">{taka(m.currentBalance)}</div>
             </div>
             {m.target > 0 && (
               <div>
@@ -57,11 +61,8 @@ export default function MemberCard({ m }) {
                 <div>{taka(m.target)}</div>
               </div>
             )}
-            <div>
-              <span className="member-balance-label">যোগদানের তারিখ</span>
-              <div>{m.join_date || "—"}</div>
-            </div>
           </div>
+          <p className="small-note" style={{ marginTop: -4 }}>যোগদানের তারিখ: {m.join_date || "—"}</p>
 
           {m.transactions.length > 0 ? (
             <div className="tx-list">

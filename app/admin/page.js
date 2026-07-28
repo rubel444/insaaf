@@ -75,7 +75,7 @@ export default function AdminPage() {
         </div>
         <div style={{ display: "flex", gap: 10 }}>
           <a className="admin-link" href="/">
-            পাবলিক ড্যাশবোর্ড
+            পাবলিক পেইজ দেখুন
           </a>
           <button className="btn secondary" onClick={handleLogout}>
             লগ-আউট
@@ -778,6 +778,45 @@ function InvestmentTab({ investments, members, activeCount, onChange, flash }) {
 /* ---------------- History Tab ---------------- */
 function HistoryTab({ transactions, members, onChange, flash }) {
   const memberName = (id) => members.find((m) => m.id === id)?.name || "?";
+  const [editingId, setEditingId] = useState(null);
+  const [editForm, setEditForm] = useState({});
+  const [saving, setSaving] = useState(false);
+
+  function startEdit(t) {
+    setEditingId(t.id);
+    setEditForm({
+      amount: t.amount,
+      deposit_date: t.deposit_date,
+      for_month: t.for_month || "",
+      remarks: t.remarks || "",
+    });
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditForm({});
+  }
+
+  async function saveEdit(id) {
+    setSaving(true);
+    try {
+      await api(`/api/deposits/${id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          amount: Number(editForm.amount),
+          deposit_date: editForm.deposit_date,
+          for_month: editForm.for_month || null,
+          remarks: editForm.remarks || null,
+        }),
+      });
+      flash("success", "এন্ট্রি আপডেট হয়েছে।");
+      cancelEdit();
+      onChange();
+    } catch (e) {
+      flash("error", e.message);
+    }
+    setSaving(false);
+  }
 
   async function deleteTx(id) {
     if (!confirm("এই এন্ট্রিটা মুছে ফেলবেন?")) return;
@@ -805,21 +844,73 @@ function HistoryTab({ transactions, members, onChange, flash }) {
           </tr>
         </thead>
         <tbody>
-          {transactions.map((t) => (
-            <tr key={t.id}>
-              <td>{t.deposit_date}</td>
-              <td>{memberName(t.member_id)}</td>
-              <td>{t.type === "deposit" ? "জমা" : t.type === "profit" ? "লাভ" : t.type}</td>
-              <td>{t.for_month || "—"}</td>
-              <td className="amount-cell">{taka(t.amount)}</td>
-              <td>{t.remarks || "—"}</td>
-              <td>
-                <button className="icon-btn danger" onClick={() => deleteTx(t.id)}>
-                  মুছুন
-                </button>
-              </td>
-            </tr>
-          ))}
+          {transactions.map((t) =>
+            editingId === t.id ? (
+              <tr key={t.id}>
+                <td>
+                  <input
+                    type="date"
+                    style={{ width: 130, padding: "4px 6px" }}
+                    value={editForm.deposit_date}
+                    onChange={(e) => setEditForm({ ...editForm, deposit_date: e.target.value })}
+                  />
+                </td>
+                <td>{memberName(t.member_id)}</td>
+                <td>{t.type === "deposit" ? "জমা" : t.type === "profit" ? "লাভ" : t.type}</td>
+                <td>
+                  <input
+                    style={{ width: 110, padding: "4px 6px" }}
+                    value={editForm.for_month}
+                    onChange={(e) => setEditForm({ ...editForm, for_month: e.target.value })}
+                  />
+                </td>
+                <td>
+                  <input
+                    type="number"
+                    style={{ width: 90, padding: "4px 6px" }}
+                    value={editForm.amount}
+                    onChange={(e) => setEditForm({ ...editForm, amount: e.target.value })}
+                  />
+                </td>
+                <td>
+                  <input
+                    style={{ width: 140, padding: "4px 6px" }}
+                    value={editForm.remarks}
+                    onChange={(e) => setEditForm({ ...editForm, remarks: e.target.value })}
+                  />
+                </td>
+                <td>
+                  <div className="data-table-actions">
+                    <button className="icon-btn" disabled={saving} onClick={() => saveEdit(t.id)}>
+                      সেভ
+                    </button>
+                    <button className="icon-btn" onClick={cancelEdit}>
+                      বাতিল
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ) : (
+              <tr key={t.id}>
+                <td>{t.deposit_date}</td>
+                <td>{memberName(t.member_id)}</td>
+                <td>{t.type === "deposit" ? "জমা" : t.type === "profit" ? "লাভ" : t.type}</td>
+                <td>{t.for_month || "—"}</td>
+                <td className="amount-cell">{taka(t.amount)}</td>
+                <td>{t.remarks || "—"}</td>
+                <td>
+                  <div className="data-table-actions">
+                    <button className="icon-btn" onClick={() => startEdit(t)}>
+                      এডিট
+                    </button>
+                    <button className="icon-btn danger" onClick={() => deleteTx(t.id)}>
+                      মুছুন
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            )
+          )}
         </tbody>
       </table>
     </div>

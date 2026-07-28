@@ -44,7 +44,7 @@ export default async function HomePage() {
     <div className="wrap">
       <div className="ledger-header">
         <div>
-          <h1 className="ledger-title">ইনসাফ ফাউন্ডেশন</h1>
+          <h1 className="ledger-title">আমাদের সমিতি — হিসাব খাতা</h1>
           <div className="ledger-sub">
             সক্রিয় সদস্য {activeMembers.length} জন · হালনাগাদ তথ্য (রিয়েল-টাইম)
           </div>

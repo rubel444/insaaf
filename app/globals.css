@@ -311,6 +311,7 @@ button {
 }
 .tx-amount-deposit { color: var(--green-deep); font-family: var(--font-mono); }
 .tx-amount-profit { color: var(--gold); font-family: var(--font-mono); }
+.tx-amount-grand { color: var(--maroon); font-family: var(--font-mono); font-weight: 700; }
 
 /* ---------- Table (monthly overview) ---------- */
 .table-wrap {
