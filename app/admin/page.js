@@ -2,6 +2,14 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { taka, buildMemberSummaries } from "../../lib/helpers";
+import {
+  exportMemberDetail,
+  exportAllSummary,
+  exportMonthly,
+  exportYearly,
+  periodLabel,
+  yearOfLabel,
+} from "../../lib/exportHelpers";
 
 async function api(path, options) {
   const res = await fetch(path, {
@@ -83,6 +91,7 @@ export default function AdminPage() {
           ["deposit", "জমা এন্ট্রি"],
           ["investment", "লাভ / বিনিয়োগ"],
           ["history", "সব লেনদেন"],
+          ["reports", "রিপোর্ট/ডাউনলোড"],
         ].map(([key, label]) => (
           <button
             key={key}
@@ -119,6 +128,9 @@ export default function AdminPage() {
               onChange={loadAll}
               flash={flash}
             />
+          )}
+          {tab === "reports" && (
+            <ReportsTab members={members} transactions={transactions} />
           )}
         </>
       )}
@@ -211,8 +223,57 @@ function MembersTab({ members, onChange, flash }) {
     }
   }
 
+  const [bulkTarget, setBulkTarget] = useState("");
+  const [bulkSaving, setBulkSaving] = useState(false);
+
+  async function applyBulkTarget() {
+    if (!bulkTarget) return;
+    if (
+      !confirm(
+        `সব সক্রিয় সদস্যের টার্গেট এমাউন্ট একসাথে ${bulkTarget} টাকা করে দেয়া হবে। আগের যার যা টার্গেট ছিল তা মুছে এই নতুন ভ্যালু বসবে। আগাবেন?`
+      )
+    )
+      return;
+    setBulkSaving(true);
+    try {
+      const res = await api("/api/members/bulk-target", {
+        method: "POST",
+        body: JSON.stringify({ target_amount: Number(bulkTarget) }),
+      });
+      flash("success", `${res.updatedCount} জন সক্রিয় সদস্যের টার্গেট আপডেট হয়েছে।`);
+      onChange();
+    } catch (e) {
+      flash("error", e.message);
+    }
+    setBulkSaving(false);
+  }
+
   return (
     <div>
+      <div className="card">
+        <h3 style={{ marginTop: 0 }}>সবাইকে একসাথে টার্গেট এমাউন্ট দিন</h3>
+        <p className="small-note" style={{ marginTop: 0 }}>
+          প্রতি মাসে এখানে একবার নতুন টার্গেট বসিয়ে দিলে সব সক্রিয় সদস্যের নামের পাশে একসাথে আপডেট
+          হয়ে যাবে (আলাদা করে প্রতিটা সদস্যের জন্য বসাতে হবে না)।
+        </p>
+        <div className="form-row">
+          <div className="field">
+            <label>নতুন টার্গেট এমাউন্ট (সবার জন্য)</label>
+            <input
+              type="number"
+              placeholder="যেমন 51000"
+              value={bulkTarget}
+              onChange={(e) => setBulkTarget(e.target.value)}
+            />
+          </div>
+          <div style={{ display: "flex", alignItems: "flex-end" }}>
+            <button className="btn" disabled={bulkSaving || !bulkTarget} onClick={applyBulkTarget}>
+              {bulkSaving ? "আপডেট হচ্ছে..." : "সবার টার্গেট আপডেট করুন"}
+            </button>
+          </div>
+        </div>
+      </div>
+
       <div className="card">
         <h3 style={{ marginTop: 0 }}>নতুন সদস্য যোগ করুন</h3>
         <form onSubmit={addMember}>
@@ -632,6 +693,124 @@ function HistoryTab({ transactions, members, onChange, flash }) {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+/* ---------------- Reports / Export Tab ---------------- */
+function ReportsTab({ members, transactions }) {
+  const summaries = buildMemberSummaries(members, transactions);
+  const [memberId, setMemberId] = useState(members[0]?.id || "");
+
+  const monthOptions = Array.from(
+    new Set(transactions.filter((t) => t.type === "deposit").map((t) => periodLabel(t)))
+  );
+  const [monthPick, setMonthPick] = useState(monthOptions[0] || "");
+
+  const yearOptions = Array.from(
+    new Set(
+      transactions
+        .filter((t) => t.type === "deposit")
+        .map((t) => yearOfLabel(periodLabel(t)))
+    )
+  ).sort();
+  const [yearPick, setYearPick] = useState(yearOptions[0] || "");
+
+  return (
+    <div>
+      <div className="card">
+        <h3 style={{ marginTop: 0 }}>একজন নির্দিষ্ট সদস্যের সম্পূর্ণ হিসাব ডাউনলোড</h3>
+        <div className="form-row">
+          <div className="field" style={{ flex: 2 }}>
+            <label>সদস্য বাছাই করুন</label>
+            <select value={memberId} onChange={(e) => setMemberId(e.target.value)}>
+              {members.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.member_no ? `${m.member_no}. ` : ""}
+                  {m.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div style={{ display: "flex", alignItems: "flex-end" }}>
+            <button
+              className="btn"
+              disabled={!memberId}
+              onClick={() => {
+                const m = members.find((x) => x.id === memberId);
+                if (m) exportMemberDetail(m, transactions);
+              }}
+            >
+              এক্সেল ডাউনলোড করুন
+            </button>
+          </div>
+        </div>
+        <p className="small-note">তারিখ-ভিত্তিক সব জমা, লাভ ও মোট ব্যালেন্স সহ .xlsx ফাইল ডাউনলোড হবে।</p>
+      </div>
+
+      <div className="card">
+        <h3 style={{ marginTop: 0 }}>সব সদস্যের সারসংক্ষেপ (এক ফাইলে সবাই)</h3>
+        <button className="btn" onClick={() => exportAllSummary(summaries)}>
+          এক্সেল ডাউনলোড করুন
+        </button>
+        <p className="small-note">প্রতিটা সদস্যের নাম, মোট জমা, লাভ, বর্তমান ব্যালেন্স ও বকেয়া একসাথে একটা শীটে।</p>
+      </div>
+
+      <div className="card">
+        <h3 style={{ marginTop: 0 }}>একটা নির্দিষ্ট মাসের রিপোর্ট</h3>
+        {monthOptions.length === 0 ? (
+          <p className="small-note">এখনো কোনো "কোন মাসের কিস্তি" লেখা এন্ট্রি নাই।</p>
+        ) : (
+          <div className="form-row">
+            <div className="field" style={{ flex: 2 }}>
+              <label>মাস বাছাই করুন</label>
+              <select value={monthPick} onChange={(e) => setMonthPick(e.target.value)}>
+                {monthOptions.map((mo) => (
+                  <option key={mo} value={mo}>
+                    {mo}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div style={{ display: "flex", alignItems: "flex-end" }}>
+              <button
+                className="btn"
+                onClick={() => exportMonthly(monthPick, members, transactions)}
+              >
+                এক্সেল ডাউনলোড করুন
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="card">
+        <h3 style={{ marginTop: 0 }}>একটা নির্দিষ্ট বছরের রিপোর্ট (সব মাস একসাথে)</h3>
+        {yearOptions.length === 0 ? (
+          <p className="small-note">এখনো কোনো জমার এন্ট্রি নাই।</p>
+        ) : (
+          <div className="form-row">
+            <div className="field">
+              <label>বছর বাছাই করুন</label>
+              <select value={yearPick} onChange={(e) => setYearPick(e.target.value)}>
+                {yearOptions.map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div style={{ display: "flex", alignItems: "flex-end" }}>
+              <button className="btn" onClick={() => exportYearly(yearPick, members, transactions)}>
+                এক্সেল ডাউনলোড করুন
+              </button>
+            </div>
+          </div>
+        )}
+        <p className="small-note">
+          প্রতিটা সদস্য একটা করে সারি, প্রতিটা মাস একটা করে কলাম — ঠিক আগের এক্সেল শীটের মতোই দেখতে।
+        </p>
+      </div>
     </div>
   );
 }
