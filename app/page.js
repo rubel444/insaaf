@@ -3,6 +3,8 @@ import { buildMemberSummaries, distinctMonths, taka } from "../lib/helpers";
 import MemberCard from "./MemberCard";
 
 export const dynamic = "force-dynamic"; // সবসময় লেটেস্ট ডেটা দেখাবে
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
 
 export default async function HomePage() {
   const supabase = supabaseAdmin();

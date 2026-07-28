@@ -6,7 +6,7 @@ export async function PUT(req, { params }) {
   const supabase = supabaseAdmin();
 
   const updates = {};
-  ["member_no", "name", "photo_url", "status", "previous_amount", "notes", "left_date"].forEach(
+  ["member_no", "name", "photo_url", "status", "previous_amount", "target_amount", "notes", "left_date"].forEach(
     (key) => {
       if (key in body) updates[key] = body[key];
     }

@@ -128,9 +128,16 @@ export default function AdminPage() {
 
 /* ---------------- Members Tab ---------------- */
 function MembersTab({ members, onChange, flash }) {
-  const [form, setForm] = useState({ member_no: "", name: "", photo_url: "", previous_amount: "" });
+  const [form, setForm] = useState({
+    member_no: "",
+    name: "",
+    photo_url: "",
+    previous_amount: "",
+    target_amount: "",
+  });
   const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [targetEdits, setTargetEdits] = useState({});
 
   async function addMember(e) {
     e.preventDefault();
@@ -143,15 +150,31 @@ function MembersTab({ members, onChange, flash }) {
           name: form.name,
           photo_url: form.photo_url || null,
           previous_amount: form.previous_amount ? Number(form.previous_amount) : 0,
+          target_amount: form.target_amount ? Number(form.target_amount) : 0,
         }),
       });
-      setForm({ member_no: "", name: "", photo_url: "", previous_amount: "" });
+      setForm({ member_no: "", name: "", photo_url: "", previous_amount: "", target_amount: "" });
       flash("success", "নতুন সদস্য যোগ করা হয়েছে।");
       onChange();
     } catch (e) {
       flash("error", e.message);
     }
     setSaving(false);
+  }
+
+  async function saveTarget(m) {
+    const val = targetEdits[m.id];
+    if (val === undefined || val === "") return;
+    try {
+      await api(`/api/members/${m.id}`, {
+        method: "PUT",
+        body: JSON.stringify({ target_amount: Number(val) }),
+      });
+      flash("success", `${m.name} এর টার্গেট আপডেট হয়েছে।`);
+      onChange();
+    } catch (e) {
+      flash("error", e.message);
+    }
   }
 
   async function updateStatus(m, status) {
@@ -229,6 +252,17 @@ function MembersTab({ members, onChange, flash }) {
               />
             </div>
           </div>
+          <div className="form-row">
+            <div className="field">
+              <label>টার্গেট এমাউন্ট (এই মাস পর্যন্ত ক্লিয়ার থাকলে কত জমা থাকার কথা)</label>
+              <input
+                type="number"
+                placeholder="যেমন 51000"
+                value={form.target_amount}
+                onChange={(e) => setForm({ ...form, target_amount: e.target.value })}
+              />
+            </div>
+          </div>
           <button className="btn" disabled={saving}>
             {saving ? "যোগ হচ্ছে..." : "+ সদস্য যোগ করুন"}
           </button>
@@ -243,6 +277,8 @@ function MembersTab({ members, onChange, flash }) {
               <th>নাম</th>
               <th>স্ট্যাটাস</th>
               <th>বর্তমান ব্যালেন্স</th>
+              <th>টার্গেট এমাউন্ট</th>
+              <th>বকেয়া</th>
               <th>অ্যাকশন</th>
             </tr>
           </thead>
@@ -255,6 +291,25 @@ function MembersTab({ members, onChange, flash }) {
                   {m.status === "active" ? "সক্রিয়" : m.status === "left" ? "চলে গেছেন" : "বাদ"}
                 </td>
                 <td className="amount-cell">{taka(m.currentBalance)}</td>
+                <td>
+                  <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                    <input
+                      type="number"
+                      style={{ width: 90, padding: "4px 6px", fontSize: 12 }}
+                      placeholder={m.target > 0 ? m.target : "0"}
+                      value={targetEdits[m.id] ?? ""}
+                      onChange={(e) =>
+                        setTargetEdits({ ...targetEdits, [m.id]: e.target.value })
+                      }
+                    />
+                    <button className="icon-btn" onClick={() => saveTarget(m)}>
+                      সেভ
+                    </button>
+                  </div>
+                </td>
+                <td className="amount-cell">
+                  {m.due > 0 ? <span style={{ color: "var(--danger)" }}>{taka(m.due)}</span> : "—"}
+                </td>
                 <td>
                   <div className="data-table-actions">
                     {m.status !== "active" && (
@@ -408,9 +463,7 @@ function InvestmentTab({ investments, activeCount, onChange, flash }) {
     e.preventDefault();
     if (
       !confirm(
-        `${activeCount} জন সক্রিয় সদস্যের মধ্যে ${form.profit_amount} টাকা লাভ সমান ভাগে বন্টন হবে (জনপ্রতি প্রায় ${(
-          Number(form.profit_amount || 0) / (activeCount || 1)
-        ).toFixed(2)} টাকা)। আগাবেন?`
+        `${form.distribution_date} তারিখ পর্যন্ত যার যত টাকা জমা আছে, তার অনুপাতে ${form.profit_amount} টাকা লাভ ${activeCount} জন সক্রিয় সদস্যের মধ্যে ভাগ হবে (সমান ভাগ না, বেশি জমাদাতা বেশি পাবে)। আগাবেন?`
       )
     )
       return;
@@ -471,7 +524,7 @@ function InvestmentTab({ investments, activeCount, onChange, flash }) {
           </div>
           <div className="form-row">
             <div className="field">
-              <label>মোট লাভ (সবার মধ্যে সমান ভাগ হবে)</label>
+              <label>মোট লাভ (যার যত জমা আছে সেই অনুপাতে ভাগ হবে)</label>
               <input
                 type="number"
                 required

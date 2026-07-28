@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "../../../lib/supabaseAdmin";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export async function GET() {
   const supabase = supabaseAdmin();
   const { data, error } = await supabase
@@ -24,6 +27,7 @@ export async function POST(req) {
       photo_url: body.photo_url || null,
       status: body.status || "active",
       previous_amount: body.previous_amount || 0,
+      target_amount: body.target_amount || 0,
       join_date: body.join_date || new Date().toISOString().slice(0, 10),
       notes: body.notes || null,
     })
