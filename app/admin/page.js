@@ -75,7 +75,7 @@ export default function AdminPage() {
         </div>
         <div style={{ display: "flex", gap: 10 }}>
           <a className="admin-link" href="/">
-            পাবলিক পেইজ দেখুন
+            ড্যাশবোর্ড
           </a>
           <button className="btn secondary" onClick={handleLogout}>
             লগ-আউট
