@@ -75,7 +75,7 @@ export default function AdminPage() {
         </div>
         <div style={{ display: "flex", gap: 10 }}>
           <a className="admin-link" href="/">
-            ড্যাশবোর্ড
+            পাবলিক পেইজ দেখুন
           </a>
           <button className="btn secondary" onClick={handleLogout}>
             লগ-আউট
@@ -116,6 +116,7 @@ export default function AdminPage() {
           {tab === "investment" && (
             <InvestmentTab
               investments={investments}
+              members={members}
               activeCount={members.filter((m) => m.status === "active").length}
               onChange={loadAll}
               flash={flash}
@@ -331,6 +332,22 @@ function MembersTab({ members, onChange, flash }) {
       </div>
 
       <div className="table-wrap">
+        {(() => {
+          const totalDue = members.reduce((s, m) => s + (m.due || 0), 0);
+          return totalDue > 0 ? (
+            <div
+              style={{
+                padding: "10px 14px",
+                borderBottom: "1px solid var(--paper-line)",
+                fontFamily: "var(--font-mono)",
+                fontWeight: 700,
+                color: "var(--danger)",
+              }}
+            >
+              সবাই মিলিয়ে সর্বমোট বকেয়া: {taka(totalDue)}
+            </div>
+          ) : null;
+        })()}
         <table className="ledger-table">
           <thead>
             <tr>
@@ -510,7 +527,8 @@ function DepositTab({ members, onChange, flash }) {
 }
 
 /* ---------------- Investment Tab ---------------- */
-function InvestmentTab({ investments, activeCount, onChange, flash }) {
+function InvestmentTab({ investments, members, activeCount, onChange, flash }) {
+  const [mode, setMode] = useState("auto"); // "auto" | "manual"
   const [form, setForm] = useState({
     title: "",
     invested_amount: "",
@@ -518,9 +536,16 @@ function InvestmentTab({ investments, activeCount, onChange, flash }) {
     distribution_date: new Date().toISOString().slice(0, 10),
     notes: "",
   });
+  const [manualShares, setManualShares] = useState({});
   const [saving, setSaving] = useState(false);
 
-  async function submit(e) {
+  const activeMembers = members.filter((m) => m.status === "active");
+  const manualTotal = Object.values(manualShares).reduce(
+    (s, v) => s + (Number(v) || 0),
+    0
+  );
+
+  async function submitAuto(e) {
     e.preventDefault();
     if (
       !confirm(
@@ -549,6 +574,41 @@ function InvestmentTab({ investments, activeCount, onChange, flash }) {
     setSaving(false);
   }
 
+  async function submitManual(e) {
+    e.preventDefault();
+    const shares = activeMembers
+      .map((m) => ({ member_id: m.id, amount: Number(manualShares[m.id] || 0) }))
+      .filter((s) => s.amount !== 0);
+
+    if (shares.length === 0) {
+      flash("error", "অন্তত একজন সদস্যের জন্য শূন্যের বেশি এমাউন্ট বসাও।");
+      return;
+    }
+    if (!confirm(`মোট ${manualTotal} টাকা তোমার হাতে বসানো হিসাব অনুযায়ী বন্টন হবে। আগাবেন?`)) return;
+
+    setSaving(true);
+    try {
+      await api("/api/investments", {
+        method: "POST",
+        body: JSON.stringify({
+          title: form.title,
+          invested_amount: Number(form.invested_amount || 0),
+          profit_amount: manualTotal,
+          distribution_date: form.distribution_date,
+          notes: form.notes || null,
+          manual_shares: shares,
+        }),
+      });
+      flash("success", "হাতে বসানো হিসাব অনুযায়ী লাভ বন্টন করা হয়েছে।");
+      setForm({ title: "", invested_amount: "", profit_amount: "", distribution_date: form.distribution_date, notes: "" });
+      setManualShares({});
+      onChange();
+    } catch (e) {
+      flash("error", e.message);
+    }
+    setSaving(false);
+  }
+
   async function deleteInvestment(id) {
     if (!confirm("এই প্রজেক্টের হিসাব এবং এর সাথে বন্টন করা লাভ মুছে ফেলবেন?")) return;
     try {
@@ -564,54 +624,123 @@ function InvestmentTab({ investments, activeCount, onChange, flash }) {
     <div>
       <div className="card">
         <h3 style={{ marginTop: 0 }}>নতুন প্রজেক্ট / লাভ বন্টন</h3>
-        <form onSubmit={submit}>
-          <div className="form-row">
-            <div className="field" style={{ flex: 2 }}>
-              <label>প্রজেক্টের নাম</label>
-              <input
-                required
-                value={form.title}
-                onChange={(e) => setForm({ ...form, title: e.target.value })}
-              />
-            </div>
-            <div className="field">
-              <label>বিনিয়োগ করা টাকা</label>
-              <input
-                type="number"
-                value={form.invested_amount}
-                onChange={(e) => setForm({ ...form, invested_amount: e.target.value })}
-              />
-            </div>
+
+        <div className="tabs" style={{ marginBottom: 16 }}>
+          <button
+            className={`tab ${mode === "auto" ? "active" : ""}`}
+            onClick={() => setMode("auto")}
+            type="button"
+          >
+            স্বয়ংক্রিয় (এখনকার হিসাব থেকে অনুপাতে)
+          </button>
+          <button
+            className={`tab ${mode === "manual" ? "active" : ""}`}
+            onClick={() => setMode("manual")}
+            type="button"
+          >
+            ম্যানুয়াল (আমি নিজে হিসাব করে বসাব)
+          </button>
+        </div>
+
+        {mode === "manual" && (
+          <p className="small-note" style={{ marginTop: -8, marginBottom: 14 }}>
+            যেই সময়ের জন্য লাভ বন্টন করছো, সেই সময়ের প্রকৃত জমার তথ্য যদি সিস্টেমে (পুরনো Excel থেকে
+            আনা লাম্প-সাম "আগের ব্যালেন্স" এর কারণে) না থাকে — তাহলে এই মোড ব্যবহার করে নিজে হিসাব করে
+            প্রতিটা সদস্যের ভাগ সরাসরি বসিয়ে দাও।
+          </p>
+        )}
+
+        <div className="form-row">
+          <div className="field" style={{ flex: 2 }}>
+            <label>প্রজেক্টের নাম</label>
+            <input
+              required
+              value={form.title}
+              onChange={(e) => setForm({ ...form, title: e.target.value })}
+            />
           </div>
-          <div className="form-row">
+          <div className="field">
+            <label>বিনিয়োগ করা টাকা (ঐচ্ছিক তথ্য)</label>
+            <input
+              type="number"
+              value={form.invested_amount}
+              onChange={(e) => setForm({ ...form, invested_amount: e.target.value })}
+            />
+          </div>
+        </div>
+        <div className="form-row">
+          {mode === "auto" && (
             <div className="field">
               <label>মোট লাভ (যার যত জমা আছে সেই অনুপাতে ভাগ হবে)</label>
               <input
                 type="number"
-                required
+                required={mode === "auto"}
                 value={form.profit_amount}
                 onChange={(e) => setForm({ ...form, profit_amount: e.target.value })}
               />
             </div>
-            <div className="field">
-              <label>বন্টনের তারিখ</label>
-              <input
-                type="date"
-                value={form.distribution_date}
-                onChange={(e) => setForm({ ...form, distribution_date: e.target.value })}
-              />
+          )}
+          <div className="field">
+            <label>বন্টনের তারিখ (আসল লাভ পাওয়ার তারিখ)</label>
+            <input
+              type="date"
+              value={form.distribution_date}
+              onChange={(e) => setForm({ ...form, distribution_date: e.target.value })}
+            />
+          </div>
+        </div>
+        <div className="form-row">
+          <div className="field">
+            <label>নোট (ঐচ্ছিক)</label>
+            <input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+          </div>
+        </div>
+
+        {mode === "manual" && (
+          <div className="table-wrap" style={{ marginBottom: 14 }}>
+            <table className="ledger-table">
+              <thead>
+                <tr>
+                  <th>সদস্য</th>
+                  <th>লাভের ভাগ (৳)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {activeMembers.map((m) => (
+                  <tr key={m.id}>
+                    <td>
+                      {m.member_no ? `${m.member_no}. ` : ""}
+                      {m.name}
+                    </td>
+                    <td>
+                      <input
+                        type="number"
+                        style={{ width: 120, padding: "5px 8px" }}
+                        value={manualShares[m.id] ?? ""}
+                        onChange={(e) =>
+                          setManualShares({ ...manualShares, [m.id]: e.target.value })
+                        }
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div style={{ padding: "10px 12px", fontFamily: "var(--font-mono)", fontWeight: 700 }}>
+              মোট বসানো হয়েছে: {taka(manualTotal)}
             </div>
           </div>
-          <div className="form-row">
-            <div className="field">
-              <label>নোট (ঐচ্ছিক)</label>
-              <input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
-            </div>
-          </div>
-          <button className="btn" disabled={saving || !activeCount}>
+        )}
+
+        {mode === "auto" ? (
+          <button className="btn" disabled={saving || !activeCount} onClick={submitAuto}>
             {saving ? "বন্টন হচ্ছে..." : "লাভ বন্টন করুন"}
           </button>
-        </form>
+        ) : (
+          <button className="btn" disabled={saving || !activeMembers.length} onClick={submitManual}>
+            {saving ? "বন্টন হচ্ছে..." : "হাতে বসানো হিসাব অনুযায়ী বন্টন করুন"}
+          </button>
+        )}
       </div>
 
       <div className="table-wrap">

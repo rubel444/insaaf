@@ -114,6 +114,14 @@ button {
   position: relative;
 }
 
+.stamp.stamp-danger {
+  border-color: var(--danger);
+}
+
+.stamp-value-danger {
+  color: var(--danger) !important;
+}
+
 .stamp::before {
   content: "";
   position: absolute;

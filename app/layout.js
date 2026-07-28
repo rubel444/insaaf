@@ -1,7 +1,7 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "ইনসাফ ফাউন্ডেশন",
+  title: "আমাদের সমিতি — হিসাব খাতা",
   description: "সমিতির মাসিক জমা ও হিসাবের ডিজিটাল খাতা",
 };
 

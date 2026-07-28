@@ -21,11 +21,56 @@ export async function POST(req) {
   const body = await req.json();
   const supabase = supabaseAdmin();
 
-  if (!body.profit_amount || !body.title) {
-    return NextResponse.json(
-      { error: "title এবং profit_amount আবশ্যক" },
-      { status: 400 }
-    );
+  if (!body.title) {
+    return NextResponse.json({ error: "title আবশ্যক" }, { status: 400 });
+  }
+
+  const distributionDate =
+    body.distribution_date || new Date().toISOString().slice(0, 10);
+
+  // ---------- মোড ১: ম্যানুয়াল - এডমিন নিজে প্রতিটা সদস্যের ভাগ বসিয়ে দিয়েছে ----------
+  // (পুরনো/হিস্টোরিক্যাল ডেটা না থাকা অবস্থায় এইটা ব্যবহার হয়, যেমন লাম্প-সাম "Previous Amount"
+  //  হিসেবে ঢোকানো সদস্যদের জন্য সিস্টেম নিজে অতীতের ব্যালেন্স বের করতে পারে না)
+  if (Array.isArray(body.manual_shares) && body.manual_shares.length > 0) {
+    const { data: investment, error: invErr } = await supabase
+      .from("investments")
+      .insert({
+        title: body.title,
+        invested_amount: body.invested_amount || 0,
+        profit_amount: body.profit_amount || 0,
+        distribution_date: distributionDate,
+        notes: body.notes || null,
+      })
+      .select()
+      .single();
+
+    if (invErr) return NextResponse.json({ error: invErr.message }, { status: 500 });
+
+    const rows = body.manual_shares
+      .filter((s) => Number(s.amount) !== 0)
+      .map((s) => ({
+        member_id: s.member_id,
+        type: "profit",
+        amount: Number(s.amount),
+        deposit_date: distributionDate,
+        for_month: null,
+        remarks: `"${body.title}" প্রজেক্ট থেকে লাভের ভাগ (এডমিন কর্তৃক হাতে বসানো)`,
+        investment_id: investment.id,
+      }));
+
+    if (rows.length === 0) {
+      return NextResponse.json({ error: "কোনো সদস্যের জন্য শূন্যের বেশি এমাউন্ট দেয়া হয়নি।" }, { status: 400 });
+    }
+
+    const { error: txErr } = await supabase.from("transactions").insert(rows);
+    if (txErr) return NextResponse.json({ error: txErr.message }, { status: 500 });
+
+    return NextResponse.json({ investment, mode: "manual", memberCount: rows.length });
+  }
+
+  // ---------- মোড ২: স্বয়ংক্রিয় - distribution_date পর্যন্ত জমার অনুপাতে ----------
+  if (!body.profit_amount) {
+    return NextResponse.json({ error: "profit_amount আবশ্যক" }, { status: 400 });
   }
 
   const { data: members, error: memErr } = await supabase
@@ -37,9 +82,6 @@ export async function POST(req) {
   if (!members || members.length === 0) {
     return NextResponse.json({ error: "কোনো একটিভ মেম্বার পাওয়া যায়নি।" }, { status: 400 });
   }
-
-  const distributionDate =
-    body.distribution_date || new Date().toISOString().slice(0, 10);
 
   // বন্টনের তারিখ পর্যন্ত সবার আসল জমা+আগের লাভের হিসাব বের করা হচ্ছে,
   // যাতে লাভ সমান ভাগে না হয়ে যার যত টাকা জমা আছে তার ভিত্তিতে অনুপাতে ভাগ হয়

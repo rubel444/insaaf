@@ -32,6 +32,7 @@ export default async function HomePage() {
   const months = distinctMonths(transactions || []);
 
   const grandTotal = summaries.reduce((s, m) => s + m.currentBalance, 0);
+  const totalDue = summaries.reduce((s, m) => s + (m.due || 0), 0);
   const thisMonthDeposits = (transactions || [])
     .filter((t) => t.type === "deposit")
     .reduce((s, t) => s + Number(t.amount), 0);
@@ -43,13 +44,13 @@ export default async function HomePage() {
     <div className="wrap">
       <div className="ledger-header">
         <div>
-          <h1 className="ledger-title">ইনসাফ ফাউন্ডেশন</h1>
+          <h1 className="ledger-title">আমাদের সমিতি — হিসাব খাতা</h1>
           <div className="ledger-sub">
             সক্রিয় সদস্য {activeMembers.length} জন · হালনাগাদ তথ্য (রিয়েল-টাইম)
           </div>
         </div>
         <a className="admin-link" href="/admin">
-          Admin Panel
+          এডমিন প্যানেল
         </a>
       </div>
 
@@ -66,6 +67,12 @@ export default async function HomePage() {
           <div className="stamp-label">মোট লাভ বন্টিত</div>
           <div className="stamp-value">{taka(totalProfitDistributed)}</div>
         </div>
+        {totalDue > 0 && (
+          <div className="stamp stamp-danger">
+            <div className="stamp-label">সর্বমোট বকেয়া (সবাই মিলিয়ে)</div>
+            <div className="stamp-value stamp-value-danger">{taka(totalDue)}</div>
+          </div>
+        )}
       </div>
 
       <div className="section-title">সদস্যদের তালিকা</div>
